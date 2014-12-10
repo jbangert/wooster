@@ -1,17 +1,23 @@
-require 'byebug'
+# require 'byebug'
 module Wooster::Policy
   module Helpers
     def allow
       ->(x) { true}
     end
-    def either(*args)
+    def any(*args)
       # case args.size
       # when 1:
       #        args[0]
       #   else:
       #     ->(x){args[0] 
       # end
-      ->(x) {args.any?{|fun| self.instance_exec x,&fun}}
+
+      ->(x) {    
+        args.any?{|fun| self.instance_exec x,&fun}
+      }
+    end
+    def all(*args)
+      ->(x) {args.all?{|fun| self.instance_exec x,&fun}}
     end
   end
 class Builder
@@ -36,6 +42,12 @@ class DefinitionProxy
 	    permissions = Permissions.new(permissions_class)
 	    permissions.instance_eval(&block)
     end
+    def record(klass,block)
+      
+      permissions klass do
+        record block
+      end
+    end
 end
 
 
@@ -45,16 +57,16 @@ class Permissions # < BasicObject
     @klass = klass
   end
   def record(*args)
-    case args[0]
-    when ::Symbol
-      type, block = *args
-      #byebug
-      @klass.class_variable_get(:@@wooster_records)[type] << block
-    when ::Proc
-      [:read, :write, :delete, :create].each {|type| record type, args[0] }
-    else
-      raise ArgumentError 
+    block = args.pop
+    if args== []
+      args = [:read, :write, :delete, :create]
     end
+    args.each {|type|
+      unless type.is_a?(Symbol)
+        raise ArgumentError 
+      end
+      @klass.class_variable_get(:@@wooster_records)[type] << block
+    }
   end
   def read( block)
     record(:read,block)
